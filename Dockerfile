@@ -11,7 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Copy dependency files first (for better caching)
+# Copy workspace files first (for better caching)
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies

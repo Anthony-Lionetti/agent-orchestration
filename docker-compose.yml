@@ -11,7 +11,7 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
 
   db:
-    image: epsilla/vectordb
+    image: ankane/pgvector
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
