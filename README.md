@@ -27,7 +27,7 @@ This repository provides a step-by-step tutorial and working code to:
 
 - Docker & Docker Compose
 - Python 3.8+
-- `pip` for Python dependencies
+- `uv` for Python dependencies
 
 ---
 
@@ -36,8 +36,8 @@ This repository provides a step-by-step tutorial and working code to:
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/your-username/agentic-ai-messaging.git
-   cd agentic-ai-messaging
+   git clone https://github.com/Anthony-Lionetti/agent-orchestration.git
+   cd agent-orchestration
    ```
 
 2. **Build and start all services**
