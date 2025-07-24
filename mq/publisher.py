@@ -1,5 +1,5 @@
 import pika
-import logger
+import app.logger as logger
 import dotenv
 import os
 
