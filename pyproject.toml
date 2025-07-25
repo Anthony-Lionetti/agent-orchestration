@@ -16,4 +16,6 @@ dependencies = [
     "pydantic-settings",
     "python-json-logger",
     "alembic>=1.16.4",
+    "mcp>=1.12.2",
+    "groq>=0.30.0",
 ]

@@ -9,6 +9,13 @@ wheels/
 # Logs
 logs/
 
+# MCP
+server_config.json
+
+# Claude Code
+.claude/
+CLAUDE.md
+
 # Virtual environments
 .venv
 
