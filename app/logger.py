@@ -249,14 +249,14 @@ DEBUG_CONFIG = {
 def setup_production_logging():
     """Setup production logging configuration."""
     logging.config.dictConfig(PRODUCTION_CONFIG)
-    logger = logging.getLogger('myapp')
+    logger = logging.getLogger('fastapi-app')
     logger.info("Production logging configured")
     return logger
 
 def setup_debug_logging():
     """Setup debug logging configuration."""
     logging.config.dictConfig(DEBUG_CONFIG)
-    logger = logging.getLogger('rabbit-mq')
+    logger = logging.getLogger('rabbitmq-queue') 
     logger.debug("Debug logging configured")
     return logger
 
