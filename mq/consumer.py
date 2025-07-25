@@ -10,7 +10,7 @@ logger = setup_logging(environment='dev')
 
 MessageCallback: TypeAlias = Callable[[BlockingChannel, Basic.Deliver, BasicProperties, bytes], None]
 
-class Consumer:
+class MessageConsumer:
     """
     Interface for consuming from rabbitmq queues
 
@@ -27,7 +27,14 @@ class Consumer:
 
         Paramaters:
             queue (str): Name of the queue to consume messages from
+
             callback (callable): Function defining the logic for processing the message 
+                Parameters:
+                    ch (BlockingChannel): Consumer Channel
+                    method (Basic.Deliver): Used to ack the message once processed 
+                    properties (BasicProperties): RabbitMQ properties
+                    body (bytes): Contnent of from the queue to process
+
         """
         try:
             channel = self.connection.channel()
@@ -85,7 +92,7 @@ if __name__ == "__main__":
     try:
         mq = MQHandler()
         connection = mq.get_connection()
-        consumer = Consumer(connection)
+        consumer = MessageConsumer(connection)
 
         ch = consumer.setup("task", callback=consume_logic)
         if ch is None:  # Add this check!
