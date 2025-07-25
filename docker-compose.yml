@@ -22,7 +22,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: app/Dockerfile
     depends_on:
       - rabbitmq
       - db
@@ -30,7 +30,9 @@ services:
       - "8000:8000"
     volumes:
       # Mount only the app source code, preserving the virtual environment
-      - ./app:/app/app
+      - ./app:/src/app
+      - ./database:/src/database
+      - ./mq:/src/mq
       # Mount pyproject.toml and uv.lock for dependency changes
       - ./pyproject.toml:/app/pyproject.toml
       - ./uv.lock:/app/uv.lock
