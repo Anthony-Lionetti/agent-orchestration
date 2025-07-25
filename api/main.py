@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 
-app.include_router(task_router, prefix="/api/v1/tasks", tags=["tasks"])
+app.include_router(task_router, prefix="/api/tasks", tags=["tasks"])
 
 @app.get("/")
 async def health_check():
