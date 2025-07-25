@@ -2,7 +2,7 @@ from pika.spec import BasicProperties, Basic
 from pika.adapters.blocking_connection import BlockingChannel
 from pika import BlockingConnection
 import dotenv
-from logger import setup_logging
+from mq.logger import setup_logging
 from typing import Callable, TypeAlias
 
 dotenv.load_dotenv()

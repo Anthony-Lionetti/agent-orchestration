@@ -1,6 +1,6 @@
 import pika
 from pika import BlockingConnection
-import app.logger as logger
+from mq.logger import logger
 from typing import Optional
 import dotenv
 
