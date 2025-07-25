@@ -182,7 +182,7 @@ PRODUCTION_CONFIG = {
 # DEBUG CONFIGURATION
 DEBUG_CONFIG = {
     'version': 1,
-    'disable_existing_loggers': True,
+    'disable_existing_loggers': False,
     
     'formatters': {
         'debug': {

@@ -98,7 +98,7 @@ class MCP_ChatBot:
                                     )
         
         logger.debug(f"[MCP_ChatBot.process_query] - Initial query raw response: {response}")
-        print(response.choices[0].message.content)
+        print("Assistant Response:\n", response.choices[0].message.content)
         
         process_query = True
         while process_query:

@@ -4,6 +4,10 @@ from client import MCP_ChatBot
 from mq import MessageConsumer, MQHandler
 from mq.consumer import BlockingChannel, Basic, BasicProperties
 import json
+import concurrent.futures
+import threading
+
+QUEUE_NAME="chatbot"
 
 
 async def main():
@@ -18,19 +22,49 @@ async def main():
     except Exception as e:
         print("Error with MCP:",str(e))
 
-    async def process_message(ch:BlockingChannel, method:Basic.Deliver, properties:BasicProperties, body:bytes):
+    # Create a thread pool executor for running async tasks
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+    def process_message(ch:BlockingChannel, method:Basic.Deliver, properties:BasicProperties, body:bytes):
         # decode json message and parse out prompt
         message_raw = body.decode()
         message_json = json.loads(message_raw)
-        print(f"Message is: {message_json["prompt"]}")
+        print(f"Message is: {message_json['prompt']}")
 
-        await chatbot.process_query(message_json["prompt"])
+        def run_async_in_thread():
+            """Run the async chatbot processing in a separate thread with its own event loop"""
+            try:
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # Run the async function
+                result = loop.run_until_complete(chatbot.process_query(message_json["prompt"]))
+                loop.close()
+                return result
+                
+            except Exception as e:
+                print(f"Error in async processing: {str(e)}")
+                raise
 
-        # ack 
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        try:
+            # Submit the async task to the thread pool
+            future = executor.submit(run_async_in_thread)
+            
+            # Wait for completion
+            future.result()
+            
+            # ack 
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            print("ACK-ing Message\n\n")
+            
+        except Exception as e:
+            print(f"Error processing message: {str(e)}")
+            # Still ack the message to prevent redelivery loops
+            ch.basic_ack(delivery_tag=method.delivery_tag)
 
 
-    ch = consumer.setup("task", callback=process_message)
+    ch = consumer.setup(QUEUE_NAME, callback=process_message)
 
     try:
         consumer.consume_channel(ch)
@@ -38,8 +72,8 @@ async def main():
     except Exception as e:
         print("Error Consuming:", str(e))
 
-
     finally:
+        executor.shutdown(wait=True)  # Clean up the thread pool
         await chatbot.cleanup()
         if 'mq' in locals():  # Check if exisits first
             mq.close_connection()
