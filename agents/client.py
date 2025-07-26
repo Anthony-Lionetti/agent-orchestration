@@ -2,15 +2,16 @@
 
 from dotenv import load_dotenv
 from groq import Groq
-from mcp import ClientSession, StdioServerParameters, types
+from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from logging_service import get_system_logger
+from logging_service.decorators import log_agent_actions, log_errors
+from logging_service.utils import log_agent_interaction
+
 from typing import List, Dict, TypedDict
 from contextlib import AsyncExitStack
-import logger
 import json
 import asyncio
-
-logger = logger.setup_logging(environment='dev')
 
 load_dotenv()
 
@@ -19,21 +20,41 @@ class ToolDefinition(TypedDict):
     description: str
     input_schema: dict
 
-class MCP_ChatBot:
-
-    def __init__(self, server_config_path:str="server_config.json"):
+class MCPClient:
+    def __init__(self, server_config_path:str="server_config.json", name:str="chatbot"):
         # Initialize session and client objects
+        self.name = name
         self.sessions: List[ClientSession] = [] 
         self.exit_stack = AsyncExitStack() 
         self.groq = Groq()
         self.available_tools: List[ToolDefinition] = [] 
         self.tool_to_session: Dict[str, ClientSession] = {} 
         self.server_config_path = server_config_path
+        self.logger = get_system_logger("mcp-client")
 
+        self.logger.info(f"Initializing Chatbot with config: {server_config_path}")
 
+        # Apply decorators dynamically using the instance name
+        self._apply_dynamic_decorators()
+
+    def _apply_dynamic_decorators(self) -> None:
+        """Apply decorators that need access to instance attributes"""
+        self.connect_to_server = log_agent_actions(self.name, 'connection')(self.connect_to_server)
+        self.connect_to_server = log_errors()(self.connect_to_server)
+
+        self.process_query = log_agent_actions(self.name, 'processing')(self.process_query)
+        self.process_query = log_errors()(self.process_query)
 
     async def connect_to_server(self, server_name: str, server_config: dict) -> None:
-        """Connect to a single MCP server."""
+        """
+        Connect to a single MCP server.
+        
+        Parameters:
+            server_name (str): Name of the MCP server to connect to 
+            server_config (dict): Configuration details for the MCP server to connect to
+        """
+        self.logger.info(f"Attempting to connect to MCP server: {server_name}")
+
         try:
             server_params = StdioServerParameters(**server_config)
             stdio_transport = await self.exit_stack.enter_async_context(
@@ -50,12 +71,10 @@ class MCP_ChatBot:
             response = await session.list_tools()
             tools = response.tools
 
-            logger.debug(f"[MCP_ChatBot.connect_to_server] - Connected to {server_name}")
-            logger.debug(f"[MCP_ChatBot.connect_to_server] - With tools {[t.name for t in tools]}")
+            self.logger.debug(f"Connected to MCP server: {server_name} containing tools {[t.name for t in tools]}")
             
             for tool in tools: 
                 self.tool_to_session[tool.name] = session
-                
                 self.available_tools.append({
                     "type": "function",
                     "function": {
@@ -65,12 +84,12 @@ class MCP_ChatBot:
                         "type": tool.inputSchema['type'],
                         "properties": tool.inputSchema['properties']
                     },
-                    "requried": tool.inputSchema['required']
+                    "required": tool.inputSchema['required']
                     }
                 })
             
         except Exception as e:
-            logger.error(f"[MCP_ChatBot.connect_to_server] - Failed to connect to {server_name}: {e}")
+            self.logger.error(f"Failed to connect to servers: {str(e)}")
 
     async def connect_to_servers(self): 
         """Connect to all configured MCP servers."""
@@ -83,11 +102,11 @@ class MCP_ChatBot:
             for server_name, server_config in servers.items():
                 await self.connect_to_server(server_name, server_config)
         except Exception as e:
-            logger.error(f"[MCP_ChatBot.connect_to_servers] - Error loading server config: {e}")
+            self.logger.error(f"Error loading server config: {e}")
             raise
     
-    async def process_query(self, query):
-        logger.info(f"[MCP_ChatBot.process_query] - Processing Query: {query}")
+    async def process_query(self, query:str) -> None:
+        log_agent_interaction(self.name, 'prompt_received', f"Prompt: {query}")
 
         # Take user query and generate assistant response
         messages = [{'role':'user', 'content':query}]
@@ -97,18 +116,17 @@ class MCP_ChatBot:
                                         model="meta-llama/llama-4-scout-17b-16e-instruct"
                                     )
         
-        logger.debug(f"[MCP_ChatBot.process_query] - Initial query raw response: {response}")
-        print("Assistant Response:\n", response.choices[0].message.content)
+        log_agent_interaction(self.name, 'assistant_response', f"Assistant responded with: {response.choices[0].message.content}")
         
         process_query = True
         while process_query:
             response_message = response.choices[0].message
             tool_names = [call.function.name for call in response_message.tool_calls] if response_message.tool_calls else []
-            logger.debug(f"[MCP_ChatBot.process_query] - Response content: Role = {response_message.role} | Content = {response_message.content} {"| Tools " + str(tool_names) if tool_names else ""}\n\n")
+            self.logger.debug(f"[MCP_ChatBot.process_query] - Response content: Role = {response_message.role} | Content = {response_message.content} {"| Tools " + str(tool_names) if tool_names else ""}\n\n")
 
             # Process the Assistant response
             for choice in response.choices:
-                logger.debug(f"[MCP_ChatBot.process_query] - Current choice: {choice}")
+                self.logger.debug(f"[MCP_ChatBot.process_query] - Current choice: {choice}")
 
                 # Get text content from assistant response
                 response_content = choice.message.content
@@ -119,19 +137,19 @@ class MCP_ChatBot:
 
                 ####
                 # Process each tool call
+                self.logger.debug(f"Defined tool calls: {tool_calls}")
                 if tool_calls is not None:
                     for tool_call in tool_calls:
-                        logger.debug(f"[MCP_ChatBot.process_query] - Tool Details: {tool_call}\n")
                         tool_name = tool_call.function.name
                         tool_args:object = json.loads(tool_call.function.arguments)
+                        log_agent_interaction(self.name, 'tool_call', f"Calling tool, {tool_name} with args {tool_args}")
                     
-                        logger.debug(f"[MCP_ChatBot.process_query] - Calling tool: {tool_name}")
-                        logger.debug(f"[MCP_ChatBot.process_query] - Tool args: {tool_args}")
-                        
                         # Call a tool
                         session = self.tool_to_session[tool_name] 
                         # Await result of tool call
                         result = await session.call_tool(tool_name, arguments=tool_args)
+                        log_agent_interaction(self.name, 'tool_call', f"Tool call results: {result.content}")
+
 
                         # Append tool call to chat history
                         messages.append(
@@ -143,53 +161,36 @@ class MCP_ChatBot:
                             }
                         )
 
-                # generate next response 
-                response = self.groq.chat.completions.create(
-                                    messages=messages,
-                                    tools=self.available_tools,
-                                    model="meta-llama/llama-4-scout-17b-16e-instruct"
-                                    )
+                    # generate next response 
+                    response = self.groq.chat.completions.create(
+                                        messages=messages,
+                                        tools=self.available_tools,
+                                        model="meta-llama/llama-4-scout-17b-16e-instruct"
+                                        )
             
-                logger.debug(f"[MCP_ChatBot.process_query] - Raw response: {response}")
+                    log_agent_interaction(self.name, 'assistant_response', f"Assistant responded after tool call: {response.choices[0].message.content}")
                 
                 if len(response.choices[0].message.tool_calls) == 0:
-                    logger.debug(f"[MCP_ChatBot.process_query] - Response text: {response.choices[0].message.content}")
-                    print(response.choices[0].message.content)
+                    log_agent_interaction(self.name, 'assistant_response', f"The final Assistant response is: {response.choices[0].message.content}")
+                    import pprint; pprint.pprint(response.choices[0].message.content, indent=2)
                     process_query= False
 
-    
-    
-    async def chat_loop(self):
-        """Run an interactive chat loop"""
-        print("\nMCP Chatbot Started!")
-        print("Type your queries or 'quit' to exit.")
-        
-        while True:
-            try:
-                query = input("\nQuery: ").strip()
-        
-                if query.lower() == 'quit':
-                    break
-                    
-                await self.process_query(query)
-                print("\n")
-                    
-            except Exception as e:
-                print(f"\nError: {str(e)}")
-    
+     
     async def cleanup(self): 
         """Cleanly close all resources using AsyncExitStack."""
         await self.exit_stack.aclose()
 
 
 async def main():
-    chatbot = MCP_ChatBot()
+    TEST_PROMPT="Tell me what the weather in NYC is looking like this week"
+    chatbot = MCPClient()
     try:
         await chatbot.connect_to_servers()
-        await chatbot.chat_loop()
+        await chatbot.process_query(TEST_PROMPT)
     finally:
         await chatbot.cleanup()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
