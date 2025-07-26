@@ -1,13 +1,17 @@
 ## Building the initial agent!
 import asyncio
-from client import MCP_ChatBot
+from client import MCPClient
 from mq import MessageConsumer, MQHandler
 from mq.consumer import BlockingChannel, Basic, BasicProperties
+from logging_service import initialize_logging, log_startup
 import json
 import concurrent.futures
-import threading
+# import threading
 
 QUEUE_NAME="chatbot"
+
+initialize_logging("dev")
+log_startup("Agent Worker", "0.0.1")
 
 
 async def main():
@@ -15,7 +19,7 @@ async def main():
     connection = mq.get_connection()
     consumer = MessageConsumer(connection=connection)
 
-    chatbot = MCP_ChatBot("/Users/ant-lion/Desktop/Dev-learning/rabbitmq-practice/agents/server_config.json")
+    chatbot = MCPClient("/Users/ant-lion/Desktop/Dev-learning/rabbitmq-practice/agents/server_config.json")
     try:
         await chatbot.connect_to_servers()
 
