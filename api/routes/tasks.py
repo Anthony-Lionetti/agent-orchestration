@@ -1,13 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Any
-from mq import MQHandler
-
-from api.logger import setup_logging
-import pika
+from mq import MQHandler, publish
+from logging_service import get_execution_logger
+from logging_service.decorators import log_api_endpoints, log_errors
+from logging_service.utils import log_api_request
  
 # setup logger
-logger = setup_logging(environment='dev')
+logger = get_execution_logger("api")
 
 router = APIRouter()
 
@@ -22,41 +22,38 @@ class TaskPayload(BaseModel):
     exchange: str = ""
 
 
-@router.post("/submit-task")
+
+@router.post("/submit-task", status_code=201)
+@log_api_endpoints(logger=logger)
+@log_errors(logger=logger)
 def submit_task(payload: TaskPayload):
     # Logic to publish a message
+    logger.info(f"API call: submit_task with payload keys: {TaskDefinition.model_fields}")
+
     try:
         # Initialize MQHandler for this request
-        logger.debug(f"[submit-task] - Creating RabbitMQ Connection")
         mq = MQHandler()
-        conn = mq.get_connection()
-        ch = conn.channel()
+        connection = mq.get_connection()
 
-        # Configure Channel
-        logger.debug(f"[submit-task] - Cofiguring Channel")
-        ch.queue_declare(queue=payload.queue, durable=True)  # Declare queue
-        ch.basic_qos(prefetch_count=1)                       # Fair dispatch
-
-        ch.basic_publish(
-            exchange=payload.exchange, 
-            routing_key=payload.routing_key, 
-            body=payload.body.model_dump_json(),
-            properties=pika.BasicProperties(
-                delivery_mode=payload.delivery_mode
-            )  # Messages are now persisted
-        )
-
-        logger.info(f"[submit-task] - Published '{payload.body}' to queue '{payload.queue}'")
+        # publish message to queue
+        publish(
+            connection=connection,
+            queue=payload.queue,
+            routing_key=payload.routing_key,
+            message=payload.body.model_dump_json(),
+            content_type="application/json"
+            )
 
         # Reply to user that message is queued
+        log_api_request("POST", "submit-task", status_code=201)
         return {"status": "queued", "message": "Task successfully queued"}
     
     except Exception as e:
-        print("[submit-task] - Error:", str(e))
-        logger.error(f"[submit-task] - {str(e)}")
-        return {"status": "failed", "message": str(e)}
+        log_api_request('POST', '/submit-task', 500)
+        logger.error(f"Server error in submit_task: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     finally:
-        if 'conn' in locals():
-            conn.close()
+        if 'connection' in locals():
+            connection.close()
             logger.debug(f"[submit-task] - Connection Cleaned Up")
