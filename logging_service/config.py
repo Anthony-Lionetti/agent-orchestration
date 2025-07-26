@@ -7,6 +7,9 @@ from enum import Enum
 # Ensure logs directory exists
 Path("logs").mkdir(exist_ok=True)
 
+# Project Name
+PROJECT_NAME="agent-orchestration"
+
 class LogLevel(Enum):
     DEBUG = "DEBUG"
     INFO = "INFO"
@@ -52,7 +55,7 @@ class LoggingConfig:
         """Base configuration shared across all environments"""
         return {
             'version': 1,
-            'disable_existing_loggers': False,
+            'disable_existing_loggers': True,
             
             'formatters': {
                 'detailed': {
@@ -153,35 +156,35 @@ class LoggingConfig:
             
             'loggers': {
                 # RabbitMQ message queue operations
-                'rabbitmq.queue': {
+                f'{PROJECT_NAME}.queue': {
                     'handlers': ['console', 'execution_file', 'error_file'],
                     'level': 'INFO',
                     'propagate': False
                 },
                 
                 # Database operations
-                'rabbitmq.database': {
+                f'{PROJECT_NAME}.database': {
                     'handlers': ['console', 'execution_file', 'error_file'],
                     'level': 'INFO',
                     'propagate': False
                 },
                 
                 # API operations
-                'rabbitmq.api': {
+                f'{PROJECT_NAME}.api': {
                     'handlers': ['console', 'execution_file', 'error_file'],
                     'level': 'INFO',
                     'propagate': False
                 },
                 
                 # Agent operations
-                'rabbitmq.agent': {
+                f'{PROJECT_NAME}.agent': {
                     'handlers': ['console', 'agent_file', 'error_file'],
                     'level': 'INFO',
                     'propagate': False
                 },
                 
                 # System operations
-                'rabbitmq.system': {
+                f'{PROJECT_NAME}.system': {
                     'handlers': ['console', 'system_file', 'error_file'],
                     'level': 'INFO',
                     'propagate': False
