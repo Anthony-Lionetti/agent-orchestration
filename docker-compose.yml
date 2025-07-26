@@ -33,6 +33,7 @@ services:
       - ./api:/src/api
       - ./database:/src/database
       - ./mq:/src/mq
+      - ./logging_service:/src/logging_service
       # Mount pyproject.toml and uv.lock for dependency changes
       - ./pyproject.toml:/app/pyproject.toml
       - ./uv.lock:/app/uv.lock

@@ -21,6 +21,7 @@ RUN --mount=type=cache,target=/root/.cache uv sync --locked
 COPY ./api ./api
 COPY ./database ./database
 COPY ./mq ./mq
+COPY ./logging_service ./logging_service
 
 # Create non-root user
 RUN adduser --disabled-password --gecos '' --shell /bin/bash user \
