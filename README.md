@@ -1,14 +1,15 @@
 # Agentic AI Messaging System (Work in Progress)
 
-A template project demonstrating how to build an agentic AI messaging system using RabbitMQ, Python (FastAPI & Celery), Docker, and PostgreSQL.
+A template project demonstrating how to build an agentic AI messaging system using RabbitMQ, Python (FastAPI & Pika), Docker, and PostgreSQL.
 
 This repository provides a step-by-step tutorial and working code to:
 
 - Set up RabbitMQ with management UI in Docker
 - Write Python producers and consumers using Pika
 - Implement reliable work queues with acknowledgments and durability
+- Implement unified logging that can be used in a variety of Agentic / AI projects
 - Integrate RabbitMQ with a FastAPI application for asynchronous task handling
-- Use Celery as a task queue library with RabbitMQ as the broker and PostgreSQL as the result backend
+- Use Pika as a task queue library with RabbitMQ as the broker and PostgreSQL as the result backend
 - Orchestrate all services with Docker Compose for easy development and testing
 
 ---
@@ -67,8 +68,7 @@ This repository provides a step-by-step tutorial and working code to:
 
 ### FastAPI Endpoints
 
-- **`POST /add`**: Submit a task (adds two numbers asynchronously). Returns a `task_id`.
-- **`GET /task-result/{task_id}`**: Retrieve the status and result of a submitted task.
+- **`POST /submit-task`**: Submit a task . Returns a `task_id`.
 
 <!-- ### Celery Worker
 
