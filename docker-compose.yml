@@ -1,47 +1,45 @@
 version: "3.8"
 services:
   rabbitmq:
-    image: rabbitmq:3-management # RabbitMQ with management UI
+    image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5672:5672" # RabbitMQ broker port
-      - "15672:15672" # Management console port
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
-  db:
-    image: ankane/pgvector
-    environment:
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
-      POSTGRES_DB: mydatabase
-    ports:
-      - "5432:5432"
-
   api:
     build:
       context: .
-      dockerfile: api/Dockerfile
-    depends_on:
-      - rabbitmq
-      - db
+      dockerfile: Dockerfile.pip
+    container_name: fastapi_app
     ports:
       - "8000:8000"
+    depends_on:
+      - rabbitmq
     volumes:
-      # Mount only the app source code, preserving the virtual environment
-      - ./api:/src/api
-      - ./database:/src/database
-      - ./mq:/src/mq
+      - ./app:/src/app
       - ./logging_service:/src/logging_service
-      # Mount pyproject.toml and uv.lock for dependency changes
-      - ./pyproject.toml:/app/pyproject.toml
-      - ./uv.lock:/app/uv.lock
     environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      DATABASE_HOST: db
-      DATABASE_PORT: 5432
-      DATABASE_USER: myuser
-      DATABASE_PASSWORD: mypassword
-      DATABASE_NAME: mydatabase
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      PROJECT_NAME: "Agent-Scheduling"
+      LEAD_AGENT_CONFIG_PATH: /src/app/server_config.lead_agent.json
+    # volumes:
+    #   - ./custom_config:/src/custom_config  # Mount custom config directory if using custom path
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.pip
+    command: celery -A app.tasks worker --concurrency=4 --loglevel=info
+    depends_on:
+      - rabbitmq
+    volumes:
+      - ./app:/src/app
+      - ./logging_service:/src/logging_service
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      PROJECT_NAME: "Agent-Scheduling"
+      LEAD_AGENT_CONFIG_PATH: /src/app/server_config.lead_agent.json

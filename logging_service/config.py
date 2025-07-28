@@ -8,7 +8,7 @@ from enum import Enum
 Path("logs").mkdir(exist_ok=True)
 
 # Project Name
-PROJECT_NAME="agent-orchestration"
+PROJECT_NAME=os.getenv("PROJECT_NAME")
 
 class LogLevel(Enum):
     DEBUG = "DEBUG"
@@ -31,7 +31,7 @@ class LogEnv(Enum):
     PROD = "prod"        # Application startup, shutdown, health
 
 class LoggingConfig:
-    """Centralized logging configuration for the RabbitMQ practice application"""
+    """Centralized logging application configuration"""
     
     @staticmethod
     def get_config(environment: LogEnv = LogEnv.DEV) -> Dict[str, Any]:
@@ -155,7 +155,6 @@ class LoggingConfig:
             },
             
             'loggers': {
-                # RabbitMQ message queue operations
                 f'{PROJECT_NAME}.queue': {
                     'handlers': ['console', 'execution_file', 'error_file'],
                     'level': 'INFO',
@@ -191,7 +190,7 @@ class LoggingConfig:
                 },
                 
                 # Audit operations
-                'rabbitmq.audit': {
+                f'{PROJECT_NAME}.audit': {
                     'handlers': ['audit_file'],
                     'level': 'INFO',
                     'propagate': False
@@ -261,11 +260,11 @@ class LoggingConfig:
             'mailhost': os.getenv('SMTP_HOST', 'localhost'),
             'fromaddr': os.getenv('LOG_FROM_EMAIL', 'noreply@example.com'),
             'toaddrs': [os.getenv('LOG_TO_EMAIL', 'admin@example.com')],
-            'subject': 'CRITICAL Error in RabbitMQ Practice App'
+            'subject': 'CRITICAL Error in Agent Orchestration App'
         }
         
         # Add critical email handler to error-prone loggers
-        for logger_name in ['rabbitmq.queue', 'rabbitmq.database', 'rabbitmq.api']:
+        for logger_name in [f'{PROJECT_NAME}.queue', f'{PROJECT_NAME}.database', f'{PROJECT_NAME}.api']:
             config['loggers'][logger_name]['handlers'].append('email_critical')
         
         return config 

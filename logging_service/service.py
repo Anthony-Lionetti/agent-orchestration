@@ -8,7 +8,7 @@ from .config import LoggingConfig, LogCategory
 
 class LoggingService:
     """
-    Centralized logging service for the RabbitMQ practice application.
+    Centralized logging service for the application.
     
     Provides a singleton interface for managing loggers across all modules.
     Handles initialization, configuration, and logger retrieval.
@@ -65,9 +65,9 @@ class LoggingService:
         """
         # Create logger name based on category and module
         if module_name:
-            logger_name = f"rabbitmq.{category.value}.{module_name}"
+            logger_name = f"{os.getenv("PROJECT_NAME")}.{category.value}.{module_name}"
         else:
-            logger_name = f"rabbitmq.{category.value}"
+            logger_name = f"{os.getenv("PROJECT_NAME")}{category.value}"
         
         # Return cached logger if exists
         if logger_name in self._loggers:

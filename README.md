@@ -1,98 +1,30 @@
-# Agentic AI Messaging System (Work in Progress)
+# Multi-Agent Scheduling PoC
 
-A template project demonstrating how to build an agentic AI messaging system using RabbitMQ, Python (FastAPI & Pika), Docker, and PostgreSQL.
+This proof-of-concept demonstrates how to schedule and orchestrate subagents using FastAPI, Celery, and RabbitMQ.
 
-This repository provides a step-by-step tutorial and working code to:
+## Setup
 
-- Set up RabbitMQ with management UI in Docker
-- Write Python producers and consumers using Pika
-- Implement reliable work queues with acknowledgments and durability
-- Implement unified logging that can be used in a variety of Agentic / AI projects
-- Integrate RabbitMQ with a FastAPI application for asynchronous task handling
-- Use Pika as a task queue library with RabbitMQ as the broker and PostgreSQL as the result backend
-- Orchestrate all services with Docker Compose for easy development and testing
-
----
-
-## 🚀 Features
-
-- **Modular Architecture**: Decoupled producers, consumers, and web API
-- **Reliability**: Durable queues, message persistence, manual acknowledgments
-- **Scalability**: Multiple worker processes, prefetch for fair dispatch
-- **Observability**: RabbitMQ management console & Celery monitoring
-- **Containerized**: All components run in Docker containers via Docker Compose
-
----
-
-## 📋 Prerequisites
-
-- Docker & Docker Compose
-- Python 3.8+
-- `uv` for Python dependencies
-
----
-
-## 🛠 Installation & Setup
-
-1. **Clone the repository**
+1. Install Docker and Docker Compose.
+2. Clone this repo and cd into it.
+3. Run:
 
    ```bash
-   git clone https://github.com/Anthony-Lionetti/agent-orchestration.git
-   cd agent-orchestration
+   docker-compose up --build
    ```
 
-2. **Build and start all services**
+## How It Works
 
-   ```bash
-   docker-compose up --build -d
-   ```
+- **FastAPI App** (`/query`): Receives a text query, splits it into subagent objectives, and dispatches a Celery job.
+- **Celery Worker** (`subagent_task`): Consumes messages from RabbitMQ, simulates work, and returns results.
+- **Result Endpoint** (`/result/{job_id}`): Polls Celery for status and result.
 
-3. **Verify services**
+## Scaling
 
-   - RabbitMQ UI: [http://localhost:15672](http://localhost:15672) (default credentials `guest`/`guest`)
-   - FastAPI docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - PostgreSQL: `localhost:5432` (credentials in `docker-compose.yml`)
+- Increase `--concurrency` on the `worker` service to allow more parallel subagents.
+- Or run multiple `worker` replicas:
 
-4. **Run example task**
+  ```bash
+  docker-compose up --scale worker=3
+  ```
 
-   ```bash
-   curl -X POST \
-     -H "Content-Type: application/json" \
-     -d '{"a":5,"b":7}' \
-     http://localhost:8000/add
-   ```
-
----
-
-## 🔧 Usage (Work in Progress)
-
-### FastAPI Endpoints
-
-- **`POST /submit-task`**: Submit a task . Returns a `task_id`.
-
-<!-- ### Celery Worker
-
-- Starts automatically via Docker Compose.
-- Processes tasks defined in `celery_tasks.py`.
-- Stores results in PostgreSQL. -->
-
----
-
-<!-- ## 📂 Project Structure
-
-```
-├── docker-compose.yml      # Orchestrates all services
-├── Dockerfile.app          # Builds FastAPI application image
-├── Dockerfile.celery       # Builds Celery worker image
-├── app/                    # FastAPI application code
-│   ├── main.py             # FastAPI routes
-│   └── celery_tasks.py     # Celery configuration & task definitions
-└── scripts/                # Utility scripts (producer.py, consumer.py)
-```
-
----
--->
-
-## 📜 License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This will show how more workers decrease total processing time as tasks are parallelized.

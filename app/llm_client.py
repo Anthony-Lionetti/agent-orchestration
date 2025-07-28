@@ -1,24 +1,21 @@
-# Defining an mcp client using Groq
-
-from dotenv import load_dotenv
 from groq import Groq
+from groq.types.chat import ChatCompletionMessageParam, ChatCompletion
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from logging_service import get_system_logger
 from logging_service.decorators import log_agent_actions, log_errors
 from logging_service.utils import log_agent_interaction
-
 from typing import List, Dict, TypedDict
 from contextlib import AsyncExitStack
 import json
 import asyncio
 
-load_dotenv()
 
 class ToolDefinition(TypedDict):
     name: str
     description: str
     input_schema: dict
+
 
 class MCPClient:
     def __init__(self, server_config_path:str="server_config.json", name:str="chatbot"):
@@ -105,15 +102,15 @@ class MCPClient:
             self.logger.error(f"Error loading server config: {e}")
             raise
     
-    async def process_query(self, query:str) -> None:
+    async def process_query(self, query:str, model:str="meta-llama/llama-4-scout-17b-16e-instruct") -> str:
         log_agent_interaction(self.name, 'prompt_received', f"Prompt: {query}")
 
         # Take user query and generate assistant response
-        messages = [{'role':'user', 'content':query}]
+        messages:list[ChatCompletionMessageParam] = [{'role':'user', 'content':query}]
         response = self.groq.chat.completions.create(
                                         messages=messages,
                                         tools=self.available_tools,
-                                        model="meta-llama/llama-4-scout-17b-16e-instruct"
+                                        model=model
                                     )
         
         log_agent_interaction(self.name, 'assistant_response', f"Assistant responded with: {response.choices[0].message.content}")
@@ -123,6 +120,13 @@ class MCPClient:
             response_message = response.choices[0].message
             tool_names = [call.function.name for call in response_message.tool_calls] if response_message.tool_calls else []
             self.logger.debug(f"[MCP_ChatBot.process_query] - Response content: Role = {response_message.role} | Content = {response_message.content} {"| Tools " + str(tool_names) if tool_names else ""}\n\n")
+
+            # Process the Assistant response
+            assistant_and_tool_messages = self.__process_tool_calls(assistant_response=response, messages=messages, model=str)
+
+            messages += assistant_and_tool_messages
+
+            return messages
 
             # Process the Assistant response
             for choice in response.choices:
@@ -165,15 +169,76 @@ class MCPClient:
                     response = self.groq.chat.completions.create(
                                         messages=messages,
                                         tools=self.available_tools,
-                                        model="meta-llama/llama-4-scout-17b-16e-instruct"
+                                        model=model
                                         )
             
                     log_agent_interaction(self.name, 'assistant_response', f"Assistant responded after tool call: {response.choices[0].message.content}")
                 
-                if len(response.choices[0].message.tool_calls) == 0:
+                if response.choices[0].message.tool_calls is None:
                     log_agent_interaction(self.name, 'assistant_response', f"The final Assistant response is: {response.choices[0].message.content}")
-                    import pprint; pprint.pprint(response.choices[0].message.content, indent=2)
                     process_query= False
+                    return messages
+    
+    async def __process_tool_calls(self, assistant_response:ChatCompletion, messages:list[ChatCompletionMessageParam], model:str) -> list[ChatCompletionMessageParam]:
+        """
+        Process tool invokations from the llm 
+
+        Parameters:
+
+            messages (list[ChatCompletionMessageParam]): List of completion messages from groq typing
+        
+        Returns:
+            list[ChatCompletionMessageParam]: An update list of the completion messages history
+        """
+        
+        for choice in assistant_response.choices:
+            self.logger.debug(f"[MCP_ChatBot.process_query] - Current choice: {choice}")
+
+            # Get text content from assistant response
+            response_content = choice.message.content
+            messages.append({'role':'assistant', 'content':response_content})
+
+            # Get tool use invokations from assistant response
+            tool_calls = choice.message.tool_calls
+
+            ####
+            # Process each tool call
+            self.logger.debug(f"Defined tool calls: {tool_calls}")
+            if tool_calls is not None:
+                for tool_call in tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args:object = json.loads(tool_call.function.arguments)
+                    log_agent_interaction(self.name, 'tool_call', f"Calling tool, {tool_name} with args {tool_args}")
+                
+                    # Call a tool
+                    session = self.tool_to_session[tool_name] 
+                    # Await result of tool call
+                    result = await session.call_tool(tool_name, arguments=tool_args)
+                    log_agent_interaction(self.name, 'tool_call', f"Tool call results: {result.content}")
+
+
+                    # Append tool call to chat history
+                    messages.append(
+                        {
+                            "tool_call_id": tool_call.id, 
+                            "role": "tool", # Indicates this message is from tool use
+                            "name": tool_name,
+                            "content": result.content
+                        }
+                    )
+
+                # generate next response 
+                response = self.groq.chat.completions.create(
+                                    messages=messages,
+                                    tools=self.available_tools,
+                                    model=model
+                                    )
+        
+                log_agent_interaction(self.name, 'assistant_response', f"Assistant responded after tool call: {response.choices[0].message.content}")
+            
+            if response.choices[0].message.tool_calls is None:
+                log_agent_interaction(self.name, 'assistant_response', f"The final Assistant response is: {response.choices[0].message.content}")
+                return messages
 
      
     async def cleanup(self): 
